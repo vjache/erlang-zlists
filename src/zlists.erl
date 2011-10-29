@@ -2,7 +2,20 @@
 %%% @author <vjache@gmail.com>
 %%% @copyright (C) 2011, Vyacheslav Vorobyov
 %%% @doc
-%%% TODO: Add description
+%%% 	This module supports basic operations over lazy/infinite lists 
+%%%		represented as [X1,...,Xn|TailFun], where N >= 1, and 
+%%%		TailFun is a function that takes no arguments and 
+%%%		returns a proper Erlang list or again lazy list. 
+%%%		
+%%%		This is one of many other possible representations of a lazy 
+%%%		lists but this one is a useful for those applications that 
+%%%		faced by me.
+%%%		
+%%%		Also, one can ask "Why lazy lists? What for?" or 
+%%%		"How to use them?". Its a matter of taste or style of 
+%%%		programming. Those who are familiar with Lisp, Clojure, 
+%%%		Haskel knows the answers. Those who from Java or C++ may 
+%%%		remember iterators.
 %%% @end
 %%% Created : Oct 22, 2011
 %%%-------------------------------------------------------------------
@@ -18,6 +31,8 @@
 %%
 -export([new/2,
          generate/2,
+		 recurrent/2,
+		 recurrent/3,
          foreach/2, 
 		 foldl/3, 
 		 map/2, 
@@ -40,6 +55,17 @@
 %%
 %% API Functions
 %%
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Creates a lazy list from a list (proper or lazy) and tail function. When 
+%%	iterating through such a lazy list firstly elements from passed list go 
+%%	and when it exhausted, tail function called which may return an another 
+%%	lazy list or a proper list (e.g. empty).
+%% @end
+%%-------------------------------------------------------------------------------
+-spec new(ZList :: zlist(T), Fun :: fun( () -> zlist(T) ) ) -> zlist(T) .
+
 new([],Fun) when is_function(Fun, 0) ->
     Fun();
 new([E],Fun) when is_function(Fun, 0) ->
@@ -47,39 +73,95 @@ new([E],Fun) when is_function(Fun, 0) ->
 new([H|Tail],Fun) when is_function(Fun, 0) ->
     [H|fun() -> new(?EXPAND(Tail), Fun) end].
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Creates a zlist based on a zlist of seeds and generation function. 
+%%	Semantically it is equivalent to the following code:
+%%		[ E || Seed <- SeedList, E <- GeneratorFun(Seed)],
+%%	but the result of this function is lazy.
+%%	
+%%	This function can be easily composed with map and append, so it may be 
+%%	considered as a sugar.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec generate(SeedList :: zlist(T), GeneratorFun :: fun( (T) -> zlist(T1) )) -> zlist(T1) .
+
 generate([], _GeneratorFun) ->
     [];
 generate([H|Tail], GeneratorFun) when is_function(GeneratorFun, 1) ->
     new(GeneratorFun(H),
         fun()-> generate(?EXPAND(Tail),GeneratorFun) end).
 
--spec foreach(Fun, List) -> ok when
-      Fun :: fun((Elem :: T) -> term()),
-      List :: [T],
-      T :: term().
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Creates an infinit zlist based on a recurrent formula. I.e. each next item 
+%%	computed based on a previous item.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec recurrent(X0 :: T, RecFun :: fun( (T) -> T )) -> zlist(T) .
+
+recurrent(X0, RecFun) ->
+	new([X0], fun()-> recurrent(RecFun(X0), RecFun) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Creates an infinit zlist based on a recurrent formula with some inner state. 
+%%	I.e. each next item and next state computed based on a previous item and a 
+%%	previous state but only item visible as output in a zlist.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec recurrent(X0 :: T, S0 :: T1, RecFun :: fun( (T, T1) -> {T, T1} )) -> zlist(T) .
+
+recurrent(X0, S0, RecFun) ->
+	new([X0], fun()-> {X1,S1}=RecFun(X0,S0), recurrent(X1, S1, RecFun) end).
+	
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:foreach. Note that the passed zlist may be 
+%%	an infinite by nature, so be sure that you realy want to use foreach function 
+%%	against such a zlist (in some cases it may have a sense if an infinit loop is
+%%	wanted behaviour).
+%% @end
+%%-------------------------------------------------------------------------------
+-spec foreach(Fun :: fun( (T) -> any() ), ZList :: zlist(T)) -> ok .
 
 foreach(F, [Hd|Tail]) ->
     F(Hd),
 	foreach(F, ?EXPAND(Tail));
 foreach(F, []) when is_function(F, 1) -> ok.
 
--spec foldl(Fun, Acc0, List) -> Acc1 when
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:foldl. Note that the passed zlist may be 
+%%	an infinite by nature, so be sure that you realy want to use foldl function 
+%%	against such a zlist (in some cases it may have a sense if an infinit loop
+%%	with state is wanted behaviour).
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec foldl(Fun, Acc0, ZList) -> Acc1 when
       Fun :: fun((Elem :: T, AccIn) -> AccOut),
       Acc0 :: term(),
       Acc1 :: term(),
       AccIn :: term(),
       AccOut :: term(),
-      List :: [T],
-      T :: term().
+      ZList :: zlist(T).
 
 foldl(F, Accu, [Hd|Tail]) ->
     foldl(F, F(Hd, Accu), ?EXPAND(Tail));
 foldl(F, Accu, []) when is_function(F, 2) -> Accu.
 
--spec map(Fun, List1) -> List2 when
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:map. Note that map function application is not 
+%%	done at once for all elements in a zlist, application occurs as zlist 
+%%	expanded/scrolled. 
+%% @end
+%%-------------------------------------------------------------------------------
+-spec map(Fun, ZList1) -> ZList2 when
       Fun :: fun((A) -> B),
-      List1 :: [A],
-      List2 :: [B],
+      ZList1 :: zlist(A),
+      ZList2 :: zlist(B),
       A :: term(),
       B :: term().
 
@@ -87,11 +169,17 @@ map(F, [H|T]) ->
     [F(H)|fun()-> map(F, ?EXPAND(T)) end];
 map(F, []) when is_function(F, 1) -> [].
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:seq/3.
+%% @end
+%%-------------------------------------------------------------------------------
 -spec seq(From, To, Incr) -> Seq when
       From :: integer(),
       To :: integer() | infinity,
       Incr :: integer(),
       Seq :: [integer()].
+
 seq(_First, _Last, 0) ->
 	[];
 seq(First, Last, Inc) when Inc>0, First>Last, is_integer(Last) ->
@@ -101,11 +189,16 @@ seq(First, Last, Inc) when Inc<0, First<Last, is_integer(Last) ->
 seq(First, Last, Inc) -> 
     [First|fun()-> seq(First+Inc, Last, Inc) end].
 
--spec dropwhile(Pred, List1) -> List2 when
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:dropwhile/2. It skips the first elements 
+%%	satisfying predicate and returns a tail either list or zlist.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec dropwhile(Pred, ZList1) -> ZList2 when
       Pred :: fun((Elem :: T) -> boolean()),
-      List1 :: [T],
-      List2 :: [T],
-      T :: term().
+      ZList1 :: zlist(T),
+      ZList2 :: zlist(T).
 
 dropwhile(Pred, [Hd|Tail]=Rest) ->
     case Pred(Hd) of
@@ -114,25 +207,41 @@ dropwhile(Pred, [Hd|Tail]=Rest) ->
     end;
 dropwhile(Pred, []) when is_function(Pred, 1) -> [].
 
--spec filter(Pred, List1) -> List2 when
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  A lazy analog of lists:filter/2. It filters zlist lazely as list 
+%%	expanded/scrolled.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec filter(Pred, ZList1) -> ZList2 when
       Pred :: fun((Elem :: T) -> boolean()),
-      List1 :: [T],
-      List2 :: [T],
-      T :: term().
+      ZList1 :: zlist(T),
+      ZList2 :: zlist(T).
 
-filter(Pred, List) when is_function(Pred, 1) ->
+filter(Pred, ZList) when is_function(Pred, 1) ->
 	Pred1=fun(E)-> not Pred(E) end,
-    case dropwhile(Pred1, List) of
+    case dropwhile(Pred1, ZList) of
 		[] -> [];
 		[_]=R -> R;
 		[H|T] -> [H| fun()-> filter(Pred, ?EXPAND(T)) end]
 	end.
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Unlazies a zlist. I.e. creates a proper list from zlist.
+%% @end
+%%-------------------------------------------------------------------------------
 expand([]) ->
 	[];
 expand([H|T]) ->
 	[H|expand(?EXPAND(T))].
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Partially unlazies a zlist. Using a specified head lengh N creates a new zlist 
+%%	with first N elements available for pattern matching.
+%% @end
+%%-------------------------------------------------------------------------------
 expand([],_N) ->
 	[];
 expand([_,_,_,_|_]=List,4) ->
@@ -146,6 +255,11 @@ expand([_|_]=List,1) ->
 expand([H|T],N) ->
 	[H|expand(?EXPAND(T),N-1)].
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:append/1.
+%% @end
+%%-------------------------------------------------------------------------------
 -spec append(ZListOfZLists:: zlist(zlist(T))) -> zlist(T) when T :: term().
 
 append([]) ->
@@ -154,6 +268,13 @@ append([ZList]) ->
     ZList;
 append([ZList | OtherZLists]) ->
     new(ZList, fun()-> append(?EXPAND(OtherZLists)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  This function helps to iterate through zlist. It cuts oh a head of a lenght 
+%%	N and returns this head and a lazy tail.
+%% @end
+%%-------------------------------------------------------------------------------
 
 -spec scroll(N, ZList1) -> {List2, ZList3} when
       N :: non_neg_integer(),
@@ -171,10 +292,20 @@ scroll(N, ZList) when is_integer(N), N >= 0, is_list(ZList) ->
 			{Exp, []}
 	end.
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Debug function to print zlists. Do not use it for infinit zlists.
+%% @end
+%%-------------------------------------------------------------------------------
 print(L) ->
 	foreach(fun(E)-> io:format("~p~n",[E]) end, L).
+
 %%
 %% Local Functions
+%%
+
+%%
+%% eUnit Functions
 %%
 append_list_of_lists_test() ->
     L1=[1,2,3],

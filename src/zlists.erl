@@ -31,19 +31,22 @@
 %%
 -export([new/2,
          generate/2,
-		 recurrent/2,
-		 recurrent/3,
+         recurrent/2,
+         recurrent/3,
          foreach/2, 
-		 foldl/3, 
-		 map/2, 
-		 seq/3, 
-		 dropwhile/2, 
-		 filter/2, 
-		 expand/1,
-		 expand/2,
-		 append/1,
-		 scroll/2,
-		 print/1]).
+         foldl/3, 
+         map/2, 
+         seq/3, 
+         dropwhile/2, 
+         filter/2, 
+         expand/1,
+         expand/2,
+         append/1,
+         scroll/2,
+         merge/2,
+         merge/3,
+         merge/1,
+         print/1]).
 
 -define(EXPAND(Tail), if is_function(Tail, 0) -> Tail(); true -> Tail end).
 
@@ -101,7 +104,7 @@ generate([H|Tail], GeneratorFun) when is_function(GeneratorFun, 1) ->
 -spec recurrent(X0 :: T, RecFun :: fun( (T) -> T )) -> zlist(T) .
 
 recurrent(X0, RecFun) ->
-	new([X0], fun()-> recurrent(RecFun(X0), RecFun) end).
+    new([X0], fun()-> recurrent(RecFun(X0), RecFun) end).
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -119,8 +122,8 @@ recurrent(X0, RecFun) ->
 -spec recurrent(X0 :: T, S0 :: T1, RecFun :: fun( (T, T1) -> {T, T1} )) -> zlist(T) .
 
 recurrent(X0, S0, RecFun) ->
-	new([X0], fun()-> {X1,S1}=RecFun(X0,S0), recurrent(X1, S1, RecFun) end).
-	
+    new([X0], fun()-> {X1,S1}=RecFun(X0,S0), recurrent(X1, S1, RecFun) end).
+
 %%-------------------------------------------------------------------------------
 %% @doc
 %%  Just a lazy analog of lists:foreach. Note that the passed zlist may be 
@@ -133,7 +136,7 @@ recurrent(X0, S0, RecFun) ->
 
 foreach(F, [Hd|Tail]) ->
     F(Hd),
-	foreach(F, ?EXPAND(Tail));
+    foreach(F, ?EXPAND(Tail));
 foreach(F, []) when is_function(F, 1) -> ok.
 
 %%-------------------------------------------------------------------------------
@@ -187,11 +190,11 @@ map(F, []) when is_function(F, 1) -> [].
       Seq :: [integer()].
 
 seq(_First, _Last, 0) ->
-	[];
+    [];
 seq(First, Last, Inc) when Inc>0, First>Last, is_integer(Last) ->
-	[];
+    [];
 seq(First, Last, Inc) when Inc<0, First<Last, is_integer(Last) ->
-	[];
+    [];
 seq(First, Last, Inc) -> 
     [First|fun()-> seq(First+Inc, Last, Inc) end].
 
@@ -208,8 +211,8 @@ seq(First, Last, Inc) ->
 
 dropwhile(Pred, [Hd|Tail]=Rest) ->
     case Pred(Hd) of
-	true -> dropwhile(Pred, ?EXPAND(Tail));
-	false -> Rest
+        true -> dropwhile(Pred, ?EXPAND(Tail));
+        false -> Rest
     end;
 dropwhile(Pred, []) when is_function(Pred, 1) -> [].
 
@@ -225,12 +228,12 @@ dropwhile(Pred, []) when is_function(Pred, 1) -> [].
       ZList2 :: zlist(T).
 
 filter(Pred, ZList) when is_function(Pred, 1) ->
-	Pred1=fun(E)-> not Pred(E) end,
+    Pred1=fun(E)-> not Pred(E) end,
     case dropwhile(Pred1, ZList) of
-		[] -> [];
-		[_]=R -> R;
-		[H|T] -> [H| fun()-> filter(Pred, ?EXPAND(T)) end]
-	end.
+        [] -> [];
+        [_]=R -> R;
+        [H|T] -> [H| fun()-> filter(Pred, ?EXPAND(T)) end]
+    end.
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -238,28 +241,28 @@ filter(Pred, ZList) when is_function(Pred, 1) ->
 %% @end
 %%-------------------------------------------------------------------------------
 expand([]) ->
-	[];
+    [];
 expand([H|T]) ->
-	[H|expand(?EXPAND(T))].
+    [H|expand(?EXPAND(T))].
 
 %%-------------------------------------------------------------------------------
 %% @doc
 %%  Partially unlazies a zlist. Using a specified head lengh N creates a new zlist 
-%%	with first N elements available for pattern matching.
+%%  with first N elements available for pattern matching.
 %% @end
 %%-------------------------------------------------------------------------------
 expand([],_N) ->
-	[];
+    [];
 expand([_,_,_,_|_]=List,4) ->
-	List;
+    List;
 expand([_,_,_|_]=List,3) ->
-	List;
+    List;
 expand([_,_|_]=List,2) ->
-	List;
+    List;
 expand([_|_]=List,1) ->
-	List;
+    List;
 expand([H|T],N) ->
-	[H|expand(?EXPAND(T),N-1)].
+    [H|expand(?EXPAND(T),N-1)].
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -278,7 +281,7 @@ append([ZList | OtherZLists]) ->
 %%-------------------------------------------------------------------------------
 %% @doc
 %%  This function helps to iterate through zlist. It cuts oh a head of a lenght 
-%%	N and returns this head and a lazy tail.
+%%  N and returns this head and a lazy tail.
 %% @end
 %%-------------------------------------------------------------------------------
 
@@ -290,13 +293,69 @@ append([ZList | OtherZLists]) ->
       T :: term().
 
 scroll(N, ZList) when is_integer(N), N >= 0, is_list(ZList) ->
-	Exp=zlists:expand(ZList, N),
-	try lists:split(N, Exp) of
-		{Page,Tail} -> {Page,?EXPAND(Tail)}
-	catch
-		error:badarg ->
-			{Exp, []}
-	end.
+    Exp=zlists:expand(ZList, N),
+    try lists:split(N, Exp) of
+        {Page,Tail} -> {Page,?EXPAND(Tail)}
+    catch
+        error:badarg ->
+            {Exp, []}
+    end.
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:merge/2.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec merge(ZList1 :: zlist(), ZList2 :: zlist()) -> zlist().
+
+merge([], ZList2) ->
+    ZList2;
+merge(ZList1, []) ->
+    ZList1;
+merge([H1|Tail1], [H2|_]=ZList2) when H1 =< H2 ->
+    [H1| fun()-> merge(?EXPAND(Tail1),ZList2) end];
+merge(ZList1, [H2|Tail2]) ->
+    [H2| fun()-> merge(ZList1,?EXPAND(Tail2)) end].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:merge/3.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec merge(Fun, List1, List2) -> List3 when
+      Fun :: fun((A, B) -> boolean()),
+      List1 :: zlist(A),
+      List2 :: zlist(B),
+      List3 :: zlist((A | B)).
+
+merge(_Fun, [], ZList2) ->
+    ZList2;
+merge(_Fun, ZList1, []) ->
+    ZList1;
+merge(Fun, [H1|Tail1]=ZList1, [H2|Tail2]=ZList2) ->
+    H1_not_greater_than_H2=Fun(H1,H2),
+    if H1_not_greater_than_H2 ->
+           [H1| fun()-> merge(Fun,?EXPAND(Tail1),ZList2) end];
+       true -> 
+           [H2| fun()-> merge(Fun,ZList1,?EXPAND(Tail2)) end]
+    end.
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:merge/1.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec merge(ListOfZLists :: [zlist()]) -> zlist().
+
+merge([]) ->
+    [];
+merge([ZList1]) ->
+    ZList1;
+merge([ZList1,ZList2|Other]) ->
+    merge([merge(ZList1, ZList2)|Other]).
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -304,7 +363,7 @@ scroll(N, ZList) when is_integer(N), N >= 0, is_list(ZList) ->
 %% @end
 %%-------------------------------------------------------------------------------
 print(L) ->
-	foreach(fun(E)-> io:format("~p~n",[E]) end, L).
+    foreach(fun(E)-> io:format("~p~n",[E]) end, L).
 
 %%
 %% Local Functions

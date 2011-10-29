@@ -108,6 +108,12 @@ recurrent(X0, RecFun) ->
 %%  Creates an infinit zlist based on a recurrent formula with some inner state. 
 %%	I.e. each next item and next state computed based on a previous item and a 
 %%	previous state but only item visible as output in a zlist.
+%%
+%%	Try Fibonacci sequence:
+%%		1>Fibs=zlists:reccurent(1, 0, fun(X0,S0) -> {X0+S0, X0} end).
+%%		[1|#Fun<zlists.3.75807053>]
+%%		2>zlists:expand(Fibs, 10).
+%%		[1,1,2,3,5,8,13,21,34|#Fun<zlists.3.75807053>]
 %% @end
 %%-------------------------------------------------------------------------------
 -spec recurrent(X0 :: T, S0 :: T1, RecFun :: fun( (T, T1) -> {T, T1} )) -> zlist(T) .

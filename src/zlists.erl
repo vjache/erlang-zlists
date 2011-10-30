@@ -58,6 +58,9 @@
          merge/2,
          merge/3,
          merge/1,
+         merge_using/2,
+         keymerge/2,
+         keymerge/3,
          print/1]).
 
 -define(EXPAND(Tail), if is_function(Tail, 0) -> Tail(); true -> Tail end).
@@ -368,6 +371,60 @@ merge([ZList1]) ->
     ZList1;
 merge([ZList1,ZList2|Other]) ->
     merge([merge(ZList1, ZList2)|Other]).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Returns a zlist of merged zlists using specified oreding function. It is 
+%%   supposed that zlists in a list are ordered using the same (specified when 
+%%   merging) ordering function,
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec merge_using(Fun :: fun((T, T) -> boolean()) , 
+                 ListOfZLists :: [zlist(T)]) -> zlist(T).
+
+merge_using(_Fun, []) ->
+    [];
+merge_using(_Fun, [ZList1]) ->
+    ZList1;
+merge_using(Fun, [ZList1,ZList2|Other]) ->
+    merge_using(Fun, [merge(Fun, ZList1, ZList2)|Other]).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:keymerge/3.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec keymerge(N, List1, List2) -> List3 when
+      N :: non_neg_integer(),
+      List1 :: zlist(A),
+      List2 :: zlist(B),
+      List3 :: zlist((A | B)).
+
+keymerge(_N, [], ZList2) ->
+    ZList2;
+keymerge(_N, ZList1, []) ->
+    ZList1;
+keymerge(N, [H1|Tail1], [H2|_]=ZList2) when element(N,H1) =< element(N,H2) ->
+    [H1| fun()-> keymerge(N,?EXPAND(Tail1),ZList2) end];
+keymerge(N, ZList1, [H2|Tail2]) ->
+    [H2| fun()-> keymerge(N,ZList1,?EXPAND(Tail2)) end].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Analog of zlists:keymerge/3, but for a multiple zlists.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec keymerge(N ::  non_neg_integer(), ListOfZLists :: [zlist()]) -> zlist().
+
+keymerge(_N,[]) ->
+    [];
+keymerge(_N,[ZList1]) ->
+    ZList1;
+keymerge(N,[ZList1,ZList2|Other]) ->
+    keymerge(N,[keymerge(N,ZList1, ZList2)|Other]).
 
 %%-------------------------------------------------------------------------------
 %% @doc

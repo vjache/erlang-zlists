@@ -48,7 +48,8 @@
          foreach/2, 
          foldl/3, 
          map/2, 
-         seq/3, 
+         seq/3,
+         splitwith/2,
          dropwhile/2, 
          filter/2, 
          expand/1,
@@ -425,6 +426,32 @@ keymerge(_N,[ZList1]) ->
     ZList1;
 keymerge(N,[ZList1,ZList2|Other]) ->
     keymerge(N,[keymerge(N,ZList1, ZList2)|Other]).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   A lazy analog of lists:splitwith/2.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec splitwith(Pred, ZList) -> {List1, ZList2} when
+      Pred :: fun((T) -> boolean()),
+      ZList :: zlist(T),
+      List1 :: [T],
+      ZList2 :: zlist(T),
+      T :: term().
+
+splitwith(Pred, ZList) when is_function(Pred, 1) ->
+    splitwith(Pred, ZList, []).
+
+splitwith(_Pred, [], Acc) ->
+    {lists:reverse(Acc), []};
+splitwith(Pred, [H|Tail]=ZList, Acc) ->
+    Satisfy=Pred(H),
+    if Satisfy ->
+           splitwith(Pred, ?EXPAND(Tail), [H|Acc]);
+       true ->
+           {lists:reverse(Acc), ZList}
+    end.
 
 %%-------------------------------------------------------------------------------
 %% @doc

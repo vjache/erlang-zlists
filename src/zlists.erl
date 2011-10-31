@@ -62,6 +62,8 @@
          merge_using/2,
          keymerge/2,
          keymerge/3,
+         cartesian/2,
+         join/1,
          print/1]).
 
 -define(EXPAND(Tail), if is_function(Tail, 0) -> Tail(); true -> Tail end).
@@ -455,6 +457,51 @@ splitwith(Pred, [H|Tail]=ZList, Acc) ->
 
 %%-------------------------------------------------------------------------------
 %% @doc
+%%   Returns a cartesian product of two zlists as zlist.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec cartesian(ZList1 :: zlist(), ZList :: zlist()) -> zlist(list()) .  
+
+cartesian([], _ZList2) ->
+    [];
+cartesian(_ZList1, []) ->
+    [];
+cartesian(ZList1, ZList2) ->
+    generate(ZList1, fun(El)-> map(fun(Er)-> [El,Er] end, ZList2) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Returns a zlist as a result of join of a list of an ordered zlists. Actually 
+%%   it is a merge join algorithm implemntation.
+%%   The function accepts a list of sources where each source is a binary tuple:
+%%      {KeySpec, OrderedZList}, where KeySpec is an integer position of a key 
+%%      in a tuples in a OrderedZList, or a function that returns a key by term 
+%%      from a OrderedZList. OrderedZList is a zlist sorted accordinly to KeySpec.
+%%
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec join(ListOfSources :: [{KeySpec, OrderedZList}]) -> zlist(list(tuple())) 
+        when KeySpec :: non_neg_integer() | fun( (E) -> Key :: term() ),
+             OrderedZList :: zlist(E).
+
+join([{_KeySpec1, ZList1}]) ->
+    map(fun(E)-> [E] end, ZList1);
+join([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->                                                                     
+    left_join(if is_integer(KeySpec1) ->
+                     fun(E)-> element(KeySpec1, E) end;% Currying... 
+                 is_function(KeySpec1,1) -> 
+                     KeySpec1 
+              end, 
+              ZList1, 
+              if is_integer(KeySpec2) ->
+                     fun(E)-> element(KeySpec2, E) end;% Currying... 
+                 is_function(KeySpec2,1) -> 
+                     KeySpec2 
+              end, join([H|Tail]) ).
+
+%%-------------------------------------------------------------------------------
+%% @doc
 %%  Debug function to print zlists. Do not use it for infinit zlists.
 %% @end
 %%-------------------------------------------------------------------------------
@@ -464,6 +511,31 @@ print(L) ->
 %%
 %% Local Functions
 %%
+
+left_join(_KeyFun1, _ZList1, _KeyFun2, []) ->
+    [];
+left_join(KeyFun1, [H1|Tail1]=ZList1, KeyFun2, [[H2|_]|Tail2]=ZList2) 
+  when is_function(KeyFun1,1), is_function(KeyFun2,1) ->
+    K1=KeyFun1(H1),
+    K2=KeyFun2(H2),
+    if K1 < K2 ->
+           left_join(KeyFun1, Tail1, KeyFun2, ZList2);
+       K1 > K2 ->
+           left_join(KeyFun1, ZList1, KeyFun2, Tail2) ;
+       true ->
+           Pred1=fun(E) -> KeyFun1(E) == K1 end,
+           {K1List, ZList11}=splitwith(Pred1, ZList1),
+           Pred2=fun([E|_]) -> KeyFun2(E) == K2 end,
+           {K2List, ZList21}=splitwith(Pred2, ZList2),
+           new(left_cartesian(K1List, K2List), fun()-> left_join(KeyFun1, ZList11, KeyFun2, ZList21) end)
+    end.
+
+left_cartesian([], _ZList2) ->
+    [];
+left_cartesian(_ZList1, []) ->
+    [];
+left_cartesian(ZList1, ZList2) ->
+    generate(ZList1, fun(El)-> map(fun(Er)-> [El|Er] end, ZList2) end).
 
 %%
 %% eUnit Functions

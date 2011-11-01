@@ -50,7 +50,9 @@
          map/2, 
          seq/3,
          splitwith/2,
-         dropwhile/2, 
+         dropwhile/2,
+         drop/2,
+         take/2, 
          filter/2, 
          expand/1,
          expand/2,
@@ -64,7 +66,10 @@
          keymerge/3,
          cartesian/2,
          join/1,
-         print/1]).
+         zip/2,
+         ziph/2,
+         print/1,
+         print/3]).
 
 -define(EXPAND(Tail), if is_function(Tail, 0) -> Tail(); true -> Tail end).
 
@@ -233,6 +238,34 @@ dropwhile(Pred, [Hd|Tail]=Rest) ->
         false -> Rest
     end;
 dropwhile(Pred, []) when is_function(Pred, 1) -> [].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Returns a first N elements of a specified zlist as a zlist. Note that it does 
+%%  this lazely not at once, so the N may be a quite big number without risk of 
+%%  RAM hit.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec take( N :: non_neg_integer(), ZList :: zlist(T)) -> zlist(T) .
+
+take( 0, _) ->
+    [];
+take( N, [H|Tail]) ->
+    new([H],fun()-> take(N-1,?EXPAND(Tail)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Drops a first N elements of a specified zlist and returns its remainin tail (zlist).
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec drop( N :: non_neg_integer(), ZList :: zlist(T)) -> zlist(T) .
+
+drop( 0, Tail) ->
+    Tail;
+drop( N, [_|Tail]) ->
+    drop(N-1,?EXPAND(Tail)).
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -502,11 +535,47 @@ join([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->
 
 %%-------------------------------------------------------------------------------
 %% @doc
+%%   A lazy analog of lists:zip/2.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec zip(ZList1, ZList2) -> ZList3 when
+      ZList1 :: zlist(A),
+      ZList2 :: zlist(B),
+      ZList3 :: zlist({A, B}).
+zip([], []) ->
+    [];
+zip([H1|Tail1], [H2|Tail2]) ->
+    new([{H1,H2}],fun()-> zip(?EXPAND(Tail1),?EXPAND(Tail2)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Analogous to zlists:zip/2 but allow passed zlists to have a different lengths.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec ziph(ZList1, ZList2) -> ZList3 when
+      ZList1 :: zlist(A),
+      ZList2 :: zlist(B),
+      ZList3 :: zlist({A, B}).
+ziph(_ZList1, []) ->
+    [];
+ziph([], _ZList2) ->
+    [];
+ziph([H1|Tail1], [H2|Tail2]) ->
+    new([{H1,H2}],fun()-> ziph(?EXPAND(Tail1),?EXPAND(Tail2)) end).
+
+
+%%-------------------------------------------------------------------------------
+%% @doc
 %%  Debug function to print zlists. Do not use it for infinit zlists.
 %% @end
 %%-------------------------------------------------------------------------------
 print(L) ->
     foreach(fun(E)-> io:format("~p~n",[E]) end, L).
+
+print(SkipN, PrintN ,ZList) ->
+    print(take(PrintN, drop(SkipN,ZList))).
 
 %%
 %% Local Functions
@@ -530,6 +599,8 @@ left_join(KeyFun1, [H1|Tail1]=ZList1, KeyFun2, [[H2|_]|Tail2]=ZList2)
            new(left_cartesian(K1List, K2List), fun()-> left_join(KeyFun1, ZList11, KeyFun2, ZList21) end)
     end.
 
+left_cartesian([El], [Er]) -> % Optimize highly frequent case
+    [[El|Er]];
 left_cartesian([], _ZList2) ->
     [];
 left_cartesian(_ZList1, []) ->

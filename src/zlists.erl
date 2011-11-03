@@ -136,9 +136,9 @@ recurrent(X0, RecFun) ->
 %%	previous state but only item visible as output in a zlist.
 %%
 %%	Try Fibonacci sequence:
-%%		1>Fibs=zlists:reccurent(1, 0, fun(X0,S0) -> {X0+S0, X0} end).
+%%		1>Fibs=zlists:recurrent(1, 0, fun(X0,S0) -> {X0+S0, X0} end).
 %%		[1|#Fun<zlists.3.75807053>]
-%%		2>zlists:expand(Fibs, 10).
+%%		2>zlists:expand(10, Fibs).
 %%		[1,1,2,3,5,8,13,21,34|#Fun<zlists.3.75807053>]
 %% @end
 %%-------------------------------------------------------------------------------
@@ -302,18 +302,18 @@ expand([H|T]) ->
 %%  with first N elements available for pattern matching.
 %% @end
 %%-------------------------------------------------------------------------------
-expand([],_N) ->
+expand(_N, []) ->
     [];
-expand([_,_,_,_|_]=List,4) ->
+expand(4, [_,_,_,_|_]=List) ->
     List;
-expand([_,_,_|_]=List,3) ->
+expand(3, [_,_,_|_]=List) ->
     List;
-expand([_,_|_]=List,2) ->
+expand(2, [_,_|_]=List) ->
     List;
-expand([_|_]=List,1) ->
+expand(1,[_|_]=List) ->
     List;
-expand([H|T],N) ->
-    [H|expand(?EXPAND(T),N-1)].
+expand(N, [H|T]) ->
+    [H|expand(N-1,?EXPAND(T))].
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -344,7 +344,7 @@ append([ZList | OtherZLists]) ->
       T :: term().
 
 scroll(N, ZList) when is_integer(N), N >= 0, is_list(ZList) ->
-    Exp=zlists:expand(ZList, N),
+    Exp=zlists:expand(N, ZList),
     try lists:split(N, Exp) of
         {Page,Tail} -> {Page,?EXPAND(Tail)}
     catch

@@ -294,7 +294,9 @@ filter(Pred, ZList) when is_function(Pred, 1) ->
 expand([]) ->
     [];
 expand([H|T]) ->
-    [H|expand(?EXPAND(T))].
+    [H|expand(T)];
+expand(TFun) when is_function(TFun, 0) ->
+    expand(TFun()).
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -313,7 +315,9 @@ expand(2, [_,_|_]=List) ->
 expand(1,[_|_]=List) ->
     List;
 expand(N, [H|T]) ->
-    [H|expand(N-1,?EXPAND(T))].
+    [H|expand(N-1,T)];
+expand(N, TFun) when is_function(TFun, 0) ->
+    expand(N, TFun()).
 
 %%-------------------------------------------------------------------------------
 %% @doc

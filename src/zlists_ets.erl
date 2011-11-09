@@ -42,7 +42,7 @@
 %%  Returns a lazy list iterating from first element to last.
 %% @end
 %%-------------------------------------------------------------------------------
--spec from_first(Tab :: ets:tab()) -> zlists:zlist().
+-spec from_first(Tab :: ets:tab()) -> zlists:zlist(tuple()).
 from_first(Tab) ->
     from_keyl(Tab,ets:first(Tab)).
 %%-------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ from_keyl(Tab,Key) ->
 %%  Returns a lazy list iterating from last element to first.
 %% @end
 %%-------------------------------------------------------------------------------
--spec from_last(Tab :: ets:tab()) -> zlists:zlist().
+-spec from_last(Tab :: ets:tab()) -> zlists:zlist(zlists:zlist(tuple())).
 from_last(Tab) ->
     from_keyr(Tab,ets:last(Tab)).
 %%-------------------------------------------------------------------------------
@@ -94,7 +94,7 @@ from_keyr(Tab,Key) ->
 %%-------------------------------------------------------------------------------
 -spec select(Tab :: ets:tab(), 
              MatchSpec :: ets:match_spec(), 
-             Limit :: non_neg_integer()) -> zlists:zlist().
+             Limit :: non_neg_integer()) -> zlists:zlist(term()).
 select(Tab, MatchSpec, Limit) ->
     select_(ets:select(Tab, MatchSpec, Limit)).
 
@@ -109,7 +109,7 @@ select_({List,Cont}) ->
 %%-------------------------------------------------------------------------------
 -spec select_reverse(Tab :: ets:tab(), 
                      MatchSpec :: ets:match_spec(), 
-                     Limit :: non_neg_integer()) -> zlists:zlist().
+                     Limit :: non_neg_integer()) -> zlists:zlist(term()).
 select_reverse(Tab,MatchSpec, Limit) ->
     select_reverse_(ets:select_reverse(Tab, MatchSpec, Limit)).
 
@@ -124,7 +124,7 @@ select_reverse_({List,Cont}) ->
 %%  batch size.
 %% @end
 %%-------------------------------------------------------------------------------
--spec upload(Tab :: ets:tab(), ZList :: zlists:zlist(), BatchSize :: non_neg_integer()) -> ok.
+-spec upload(Tab :: ets:tab(), ZList :: zlists:zlist(tuple()), BatchSize :: non_neg_integer()) -> ok.
 upload(Tab, ZList, BatchSize) ->
     case zlists:scroll(BatchSize, ZList) of
         {Page,[]} ->
@@ -140,6 +140,6 @@ upload(Tab, ZList, BatchSize) ->
 %%  The same as uploda/3 but batch size is equal to 1000.
 %% @end
 %%-------------------------------------------------------------------------------
--spec upload(Tab :: ets:tab(), ZList :: zlists:zlist()) -> ok.
+-spec upload(Tab :: ets:tab(), ZList :: zlists:zlist(tuple())) -> ok.
 upload(Tab, ZList) ->
     upload(Tab, ZList, 1000).

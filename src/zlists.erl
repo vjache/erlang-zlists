@@ -73,10 +73,9 @@
 
 -define(EXPAND(Tail), if is_function(Tail, 0) -> Tail(); true -> Tail end).
 
--type zlist(T) :: [T] | maybe_improper_list(T, fun( () -> zlist(T) ) ) .
--type zlist() :: zlist(any()) .
+-type zlist(T) :: maybe_improper_list(T, fun(()-> zlist(T)) | [] ) .
 
--export_type([zlist/1, zlist/0]).
+-export_type([zlist/1]).
 
 %%%%%%%%%%%%%%%%%%
 %% API Functions
@@ -358,7 +357,7 @@ scroll(N, ZList) when is_integer(N), N >= 0, is_list(ZList) ->
 %% @end
 %%-------------------------------------------------------------------------------
 
--spec merge(ZList1 :: zlist(), ZList2 :: zlist()) -> zlist().
+-spec merge(ZList1 :: zlist(term()), ZList2 :: zlist(term())) -> zlist(term()).
 
 merge([], ZList2) ->
     ZList2;
@@ -399,7 +398,7 @@ merge(Fun, [H1|Tail1]=ZList1, [H2|Tail2]=ZList2) ->
 %% @end
 %%-------------------------------------------------------------------------------
 
--spec merge(ListOfZLists :: [zlist()]) -> zlist().
+-spec merge(ListOfZLists :: [zlist(term())]) -> zlist(term()).
 
 merge([]) ->
     [];
@@ -453,7 +452,7 @@ keymerge(N, ZList1, [H2|Tail2]) ->
 %% @end
 %%-------------------------------------------------------------------------------
 
--spec keymerge(N ::  non_neg_integer(), ListOfZLists :: [zlist()]) -> zlist().
+-spec keymerge(N ::  non_neg_integer(), ListOfZLists :: [zlist(term())]) -> zlist(term()).
 
 keymerge(_N,[]) ->
     [];
@@ -493,7 +492,7 @@ splitwith(Pred, [H|Tail]=ZList, Acc) ->
 %%   Returns a cartesian product of two zlists as zlist.
 %% @end
 %%-------------------------------------------------------------------------------
--spec cartesian(ZList1 :: zlist(), ZList :: zlist()) -> zlist(list()) .  
+-spec cartesian(ZList1 :: zlist(term()), ZList :: zlist(term())) -> zlist(list()) .  
 
 cartesian([], _ZList2) ->
     [];

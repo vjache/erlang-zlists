@@ -28,6 +28,10 @@
          from_keyl/2,
          from_keyr/2,
          from_last/1,
+         keys_from_first/1,
+         keys_from_last/1,
+         keys_from_keyl/2,
+         keys_from_keyr/2,
          select/3,
          select_reverse/3,
          upload/3,
@@ -44,24 +48,37 @@
 %%-------------------------------------------------------------------------------
 -spec from_first(Tab :: ets:tab()) -> zlists:zlist(tuple()).
 from_first(Tab) ->
-    from_keyl(Tab,ets:first(Tab)).
+    from_keyl(Tab, ets:first(Tab)).
 %%-------------------------------------------------------------------------------
 %% @doc
-%%  Returns a lazy list iterating in normal order starting from specified key.
+%%  Returns a lazy list iterating from first key to last.
 %% @end
 %%-------------------------------------------------------------------------------
-from_keyl(_Tab,'$end_of_table') ->
-    [];
+-spec keys_from_first(Tab :: ets:tab()) -> zlists:zlist(term()).
+keys_from_first(Tab) ->
+    First=ets:first(Tab),
+    [First | keys_from_keyl(Tab, First)].
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Returns a lazy list iterating through objects in a normal order 
+%%  starting from the specified key.
+%% @end
+%%--------------------------------------------------------------------------------
 from_keyl(Tab,Key) ->
-    case ets:lookup(Tab, Key) of
-        [] -> [];
-        Objects ->
-            case ets:next(Tab, Key) of
-                '$end_of_table' -> Objects;
-                NextKey ->
-                    zlists:new(Objects, fun()-> from_keyl(Tab,NextKey) end)
-            end
-    end.
+    zlists:generate(
+      keys_from_keyl(Tab, Key), 
+      fun(K)-> ets:lookup(Tab, K) end ).
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Returns a lazy list iterating through keys in a normal order 
+%%  starting from the specified key.
+%% @end
+%%-------------------------------------------------------------------------------
+keys_from_keyl(_Tab, '$end_of_table') ->
+    [];
+keys_from_keyl(Tab, Key) ->
+    NextKey=ets:next(Tab, Key),
+    [NextKey | fun()-> keys_from_keyl(Tab, NextKey) end].
 %%-------------------------------------------------------------------------------
 %% @doc
 %%  Returns a lazy list iterating from last element to first.
@@ -72,21 +89,36 @@ from_last(Tab) ->
     from_keyr(Tab,ets:last(Tab)).
 %%-------------------------------------------------------------------------------
 %% @doc
-%%  Returns a lazy list iterating in reverse order starting from specified key.
+%%  Returns a lazy list iterating from last key to first.
 %% @end
 %%-------------------------------------------------------------------------------
-from_keyr(_Tab,'$end_of_table') ->
-    [];
+-spec keys_from_last(Tab :: ets:tab()) -> zlists:zlist(term()).
+keys_from_last(Tab) ->
+    Last=ets:last(Tab),
+    [Last | keys_from_keyr(Tab, Last)].
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Returns a lazy list iterating through objects in reverse order 
+%%  starting from the specified key.
+%% @end
+%%-------------------------------------------------------------------------------
 from_keyr(Tab,Key) ->
-    case ets:lookup(Tab, Key) of
-        [] -> [];
-        Objects ->
-            case ets:prev(Tab, Key) of
-                '$end_of_table' -> Objects;
-                NextKey ->
-                    zlists:new(Objects, fun()-> from_keyr(Tab,NextKey) end)
-            end
-    end.
+    zlists:generate(
+      keys_from_keyr(Tab, Key), 
+      fun(K)-> ets:lookup(Tab, K) end ).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Returns a lazy list iterating through keys in reverse order 
+%%  starting from the specified key.
+%% @end
+%%-------------------------------------------------------------------------------
+keys_from_keyr(_Tab, '$end_of_table') ->
+    [];
+keys_from_keyr(Tab, Key) ->
+    NextKey=ets:prev(Tab, Key),
+    [NextKey | fun()-> keys_from_keyr(Tab, NextKey) end].
+
 %%-------------------------------------------------------------------------------
 %% @doc
 %%  This function is analogous to the one in an ets but returns a lazy list.

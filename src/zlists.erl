@@ -52,7 +52,9 @@
          splitwith/2,
          dropwhile/2,
          drop/2,
-         take/2, 
+         take/2,
+         takewhile/2,
+         takewhile2/2,
          filter/2, 
          expand/1,
          expand/2,
@@ -68,6 +70,7 @@
          join/1,
          zip/2,
          ziph/2,
+         count/1,
          print/1,
          print/3]).
 
@@ -240,6 +243,57 @@ dropwhile(Pred, []) when is_function(Pred, 1) -> [].
 
 %%-------------------------------------------------------------------------------
 %% @doc
+%%  Drops a first N elements of a specified zlist and returns its remainin tail (zlist).
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec drop( N :: non_neg_integer(), ZList :: zlist(T)) -> zlist(T) .
+
+drop( 0, Tail) ->
+    Tail;
+drop( N, [_|Tail]) ->
+    drop(N-1,?EXPAND(Tail)).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Just a lazy analog of lists:takewhile/2. It returns first elements while 
+%%  predicate function return true.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec takewhile(Pred, ZList1) -> ZList2 when
+      Pred :: fun((Elem :: T) -> boolean()),
+      ZList1 :: zlist(T),
+      ZList2 :: zlist(T).
+
+takewhile(Pred, [Hd|Tail]) ->
+    case Pred(Hd) of
+        true -> [Hd | fun()-> takewhile(Pred, ?EXPAND(Tail)) end];
+        false -> []
+    end;
+takewhile(Pred, []) when is_function(Pred, 1) -> [].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Same as takewhile/2 but "less lazy". If some first values already expanded 
+%%  then 'takewhile' logic applied immediately to them until it faces tail 
+%%  function. This function may exhibit higher performance due to less calls 
+%%  to tail fun.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec takewhile2(Pred, ZList1) -> ZList2 when
+      Pred :: fun((Elem :: T) -> boolean()),
+      ZList1 :: zlist(T),
+      ZList2 :: zlist(T).
+takewhile2(Pred, [Hd|Tail]) ->
+    case Pred(Hd) of
+        true when is_list(Tail) -> [Hd | takewhile2(Pred, Tail)];
+        true when is_function(Tail,0)-> [Hd | fun()-> takewhile2(Pred, Tail()) end];
+        false -> []
+    end;
+takewhile2(Pred, []) when is_function(Pred, 1) -> [].
+
+%%-------------------------------------------------------------------------------
+%% @doc
 %%  Returns a first N elements of a specified zlist as a zlist. Note that it does 
 %%  this lazely not at once, so the N may be a quite big number without risk of 
 %%  RAM hit.
@@ -252,19 +306,6 @@ take( 0, _) ->
     [];
 take( N, [H|Tail]) ->
     new([H],fun()-> take(N-1,?EXPAND(Tail)) end).
-
-%%-------------------------------------------------------------------------------
-%% @doc
-%%  Drops a first N elements of a specified zlist and returns its remainin tail (zlist).
-%% @end
-%%-------------------------------------------------------------------------------
-
--spec drop( N :: non_neg_integer(), ZList :: zlist(T)) -> zlist(T) .
-
-drop( 0, Tail) ->
-    Tail;
-drop( N, [_|Tail]) ->
-    drop(N-1,?EXPAND(Tail)).
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -567,6 +608,19 @@ ziph([], _ZList2) ->
     [];
 ziph([H1|Tail1], [H2|Tail2]) ->
     new([{H1,H2}],fun()-> ziph(?EXPAND(Tail1),?EXPAND(Tail2)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   This function mainly for debug purposes, it traverses through entire 
+%%   sequence to count a number of elements.
+%% @end
+%%-------------------------------------------------------------------------------
+
+count(ZList) ->
+    count(ZList, 0).
+
+count([], N) -> N;
+count([_|T], N) -> count(?EXPAND(T), N+1).
 
 
 %%-------------------------------------------------------------------------------

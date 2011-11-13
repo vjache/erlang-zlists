@@ -53,6 +53,7 @@
          dropwhile/2,
          drop/2,
          take/2,
+         take2/2,
          takewhile/2,
          takewhile2/2,
          filter/2, 
@@ -304,8 +305,30 @@ takewhile2(Pred, []) when is_function(Pred, 1) -> [].
 
 take( 0, _) ->
     [];
+take( _, []) ->
+    [];
 take( N, [H|Tail]) ->
     new([H],fun()-> take(N-1,?EXPAND(Tail)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Same as take/2 but "less lazy". If some first values already expanded 
+%%  then 'take' logic applied immediately to them until it faces tail 
+%%  function. This function may exhibit higher performance due to less calls 
+%%  to tail fun.
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec take2( N :: non_neg_integer(), ZList :: zlist(T)) -> zlist(T) .
+
+take2( 0, _) ->
+    [];
+take2( _, []) ->
+    [];
+take2( N, [H|Tail]) when is_list(Tail)->
+    [H| take2(N-1, Tail)];
+take2( N, [H|Tail]) ->
+    new([H],fun()-> take2(N-1,?EXPAND(Tail)) end).
 
 %%-------------------------------------------------------------------------------
 %% @doc

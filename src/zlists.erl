@@ -71,6 +71,8 @@
          join/1,
          zip/2,
          ziph/2,
+         unique/1,
+         unique/2,
          count/1,
          print/1,
          print/3]).
@@ -631,6 +633,30 @@ ziph([], _ZList2) ->
     [];
 ziph([H1|Tail1], [H2|Tail2]) ->
     new([{H1,H2}],fun()-> ziph(?EXPAND(Tail1),?EXPAND(Tail2)) end).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Given a sorted zlist returns a zlist where elements unique ('==' used).
+%% @end
+%%-------------------------------------------------------------------------------
+-spec unique(ZList::zlist(T)) -> zlist(T).
+unique([]) ->
+    [];
+unique([H | Tail]) ->
+    [H | fun()-> unique(dropwhile(fun(E)-> E==H end, ?EXPAND(Tail))) end].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Given a sorted zlist and equality fun, returns a zlist where elements unique 
+%%   (equality fun used). Equality fun accepts two elements and return 'true' if 
+%%   they are considered as equal.
+%% @end
+%%-------------------------------------------------------------------------------
+-spec unique(EqFun::fun((T,T)->boolean()), ZList::zlist(T)) -> zlist(T).
+unique(_EqFun, []) ->
+    [];
+unique(EqFun, [H | Tail]) when is_function(EqFun, 2) ->
+    [H | fun()-> unique(dropwhile(fun(E)-> EqFun(E,H) end, ?EXPAND(Tail))) end].
 
 %%-------------------------------------------------------------------------------
 %% @doc

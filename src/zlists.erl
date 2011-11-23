@@ -74,6 +74,7 @@
          unique/1,
          unique/2,
          count/1,
+         aggregate/4,
          print/1,
          print/3]).
 
@@ -670,6 +671,25 @@ count(ZList) ->
 
 count([], N) -> N;
 count([_|T], N) -> count(?EXPAND(T), N+1).
+
+-spec aggregate(AggFun :: fun( ([T]) -> T1 ), 
+                PredFun :: fun( (M,T) -> boolean() ), 
+                MarkerZList :: zlist(M), 
+                DataZList :: zlist(T) ) -> zlist(T1).
+
+aggregate(_AggFun, _PredFun, [], _DataZList) ->
+    [];
+aggregate(_AggFun, _PredFun, _MarkerZList, []) ->
+    [];
+aggregate(AggFun, PredFun, [Marker|MTail]=MarkerZList, [Data|DTail]=DataZList) 
+  when is_function(AggFun, 1), is_function(PredFun, 2) ->
+    case PredFun(Marker,Data) of % Check if item Data belongs to the partition marked with Marker  
+        true ->
+            {Ready,DataZList1}=zlists:splitwith(fun(E)-> PredFun(Marker,E) end, DataZList),
+            [AggFun(Ready) | fun()-> aggregate(AggFun, PredFun, zlists:expand(1, MTail), DataZList1) end];
+        false ->
+            aggregate(AggFun, PredFun, MarkerZList, zlists:expand(1, DTail))
+    end.
 
 
 %%-------------------------------------------------------------------------------

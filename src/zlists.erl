@@ -672,6 +672,29 @@ count(ZList) ->
 count([], N) -> N;
 count([_|T], N) -> count(?EXPAND(T), N+1).
 
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   This function splits a dataset on chunks, apply aggregate function on each 
+%%   chunk and returns aggregated values as a zlist. To split dataset on chunks 
+%%   two entities used: zlist of partition markers and a function which decide
+%%   whether the element of a dataset belongs to the part marked by marker.
+%%
+%%   Example:
+%%      Markers=[1,11,21,31,41,51],
+%%      Values=lists:seq(15, 35),
+%%      AggFun=fun(L)-> L end,
+%%      PredFun=fun(Marker,Value)-> Value < Marker end,
+%%      zlists:expand(
+%%         zlists:aggregate(
+%%             AggFun, PredFun, Markers, Values)).
+%%
+%%     The result is:
+%%     [[],[],
+%%      [15,16,17,18,19,20],
+%%      [21,22,23,24,25,26,27,28,29,30],
+%%      [31,32,33,34,35],[]]
+%% @end
+%%-------------------------------------------------------------------------------
 -spec aggregate(AggFun :: fun( ([T]) -> T1 ), 
                 PredFun :: fun( (M,T) -> boolean() ), 
                 MarkerZList :: zlist(M), 
@@ -679,17 +702,10 @@ count([_|T], N) -> count(?EXPAND(T), N+1).
 
 aggregate(_AggFun, _PredFun, [], _DataZList) ->
     [];
-aggregate(_AggFun, _PredFun, _MarkerZList, []) ->
-    [];
-aggregate(AggFun, PredFun, [Marker|MTail]=MarkerZList, [Data|DTail]=DataZList) 
+aggregate(AggFun, PredFun, [Marker|MTail]=_MarkerZList, DataZList) 
   when is_function(AggFun, 1), is_function(PredFun, 2) ->
-    case PredFun(Marker,Data) of % Check if item Data belongs to the partition marked with Marker  
-        true ->
-            {Ready,DataZList1}=zlists:splitwith(fun(E)-> PredFun(Marker,E) end, DataZList),
-            [AggFun(Ready) | fun()-> aggregate(AggFun, PredFun, zlists:expand(1, MTail), DataZList1) end];
-        false ->
-            aggregate(AggFun, PredFun, MarkerZList, zlists:expand(1, DTail))
-    end.
+    {Ready,DataZList1}=zlists:splitwith(fun(E)-> PredFun(Marker,E) end, DataZList),
+    [AggFun(Ready) | fun()-> aggregate(AggFun, PredFun, ?EXPAND(MTail), DataZList1) end].
 
 
 %%-------------------------------------------------------------------------------

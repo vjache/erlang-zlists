@@ -42,6 +42,7 @@
 %% Exported Functions
 %%
 -export([new/2,
+         entail/2,
          generate/2,
          recurrent/2,
          recurrent/3,
@@ -104,6 +105,29 @@ new([E],Fun) when is_function(Fun, 0) ->
     [E|Fun];
 new([H|Tail],Fun) when is_function(Fun, 0) ->
     [H|fun() -> new(?EXPAND(Tail), Fun) end].
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Similar to the zlists:new/2 but used fun of arity 1, where an argument is a 
+%%  last item of zlist passed. This function gives a chance to continue after 
+%%  exhaustion of a first zlist passed with a one constructed based on last element.
+%%  
+%%  Example:
+%%      1> L=zlists:entail([1,2,3,4,5], fun(N)-> lists:seq(N+1,N+10) end).
+%%      [1|#Fun<zlists.30.2973546>]
+%%      2> zlists:expand(L).
+%%      [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+%% @end
+%%-------------------------------------------------------------------------------
+-spec entail(ZList :: zlist(T), Fun :: fun( (T) -> zlist(T) ) ) -> zlist(T) .
+entail([],_Fun) ->
+    [];
+entail([E],Fun) ->
+    [E|Fun(E)];
+entail([E|TFun],Fun) when is_function(TFun, 0) ->
+    [E|fun()-> case TFun() of [] -> Fun(E); ZL -> entail(ZL,Fun) end end];
+entail([E|Tail],Fun)->
+    [E|fun()-> entail(Tail,Fun) end].
 
 %%-------------------------------------------------------------------------------
 %% @doc

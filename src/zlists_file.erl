@@ -14,41 +14,65 @@
 %%% limitations under the License.
 %%%
 %%% @doc
-%%%     This is a utility module that complements a file with 
+%%%     This is a utility module that complements a file module with 
 %%%     lazy list aware functions.
 %%% @end
-%%% Created : Oct 22, 2011
+%%% Created : Apr 19, 2011
 %%%-------------------------------------------------------------------------------
 -module(zlists_file).
 
 %%
+%% Include files
+%%
+
+%%
 %% Exported Functions
 %%
--export([scan_dir/2, scan_dirs/2]).
+-export([read/2, expand_binary/2]).
 
-%%%%%%%%%%%%%%%%%%
+%%
 %% API Functions
-%%%%%%%%%%%%%%%%%%
+%%
 
 %%-------------------------------------------------------------------------------
 %% @doc
-%%  Returns a lazy list of all(recursively) files & directories satisfying 
-%%  to wildcard.
+%%  Returns a content of a file as a Z-List.
 %% @end
 %%-------------------------------------------------------------------------------
-scan_dir(Wildcard,Cwd)->
-    scan_dirs(Wildcard,[Cwd]).
+-spec read(IoDevice :: file:io_device(), 
+           PageSize :: non_neg_integer()) -> zlists:zlist( binary() | list( non_neg_integer() ) ).
 
-scan_dirs(Wildcard,Dirs)->
-    zlists:generate(
-      Dirs, 
-      fun(D)->
-              All=[filename:join(D, F) || F <- filelib:wildcard(Wildcard, D)],
-              zlists:new(All, 
-                         fun()->
-                                 {ok,Filenames}=file:list_dir(D),
-                                 FullNames=[filename:join(D, F) || F <- Filenames],
-                                 scan_dirs(Wildcard,lists:filter(fun filelib:is_dir/1, FullNames)) 
-                         end)
-      end).
+read(Fd, Sz) ->
+    case file:read(Fd, Sz) of
+        {ok, Data} when is_binary(Data) ->
+            [Data | fun()-> read(Fd, Sz) end];
+        {ok, Data} when is_list(Data) ->
+            zlists:new(Data,fun()-> read(Fd, Sz) end);
+        eof -> [];
+        {error, Reason} -> throw(Reason)
+    end.
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%  Tries to make a binary head of Z-List to have at least BinSize bytes. This 
+%%  function is aplicable only against Z-List of binaries. 
+%% @end
+%%-------------------------------------------------------------------------------
+-spec expand_binary(BinZList :: zlists:zlist(binary()), 
+                    BinSize  :: non_neg_integer()) -> zlists:zlist(binary()).
+
+expand_binary([Bin|ZTail],Sz) when byte_size(Bin) >= Sz ->
+    <<Chunk:Sz/binary,BTail/binary>> = Bin,
+    [Chunk,BTail|ZTail];
+expand_binary([Bin],Sz) when byte_size(Bin) < Sz ->
+    [Bin];
+expand_binary([Bin|ZTail],Sz) ->
+    case zlists:expand(1,ZTail) of
+        [H|ZTail1]  -> expand_binary([<<Bin/binary,H/binary>>|ZTail1],Sz);
+        []          -> [Bin]
+    end.
+
+%%
+%% Local Functions
+%%
 

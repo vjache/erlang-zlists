@@ -749,14 +749,16 @@ print(SkipN, PrintN ,ZList) ->
 
 left_join(_KeyFun1, _ZList1, _KeyFun2, []) ->
     [];
+left_join(_KeyFun1, [], _KeyFun2, _ZList2) ->
+    [];
 left_join(KeyFun1, [H1|Tail1]=ZList1, KeyFun2, [[H2|_]|Tail2]=ZList2) 
   when is_function(KeyFun1,1), is_function(KeyFun2,1) ->
     K1=KeyFun1(H1),
     K2=KeyFun2(H2),
     if K1 < K2 ->
-           left_join(KeyFun1, Tail1, KeyFun2, ZList2);
+           left_join(KeyFun1, ?EXPAND(Tail1), KeyFun2, ZList2);
        K1 > K2 ->
-           left_join(KeyFun1, ZList1, KeyFun2, Tail2) ;
+           left_join(KeyFun1, ZList1, KeyFun2, ?EXPAND(Tail2)) ;
        true ->
            Pred1=fun(E) -> KeyFun1(E) == K1 end,
            {K1List, ZList11}=splitwith(Pred1, ZList1),

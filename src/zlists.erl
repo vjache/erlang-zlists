@@ -71,6 +71,8 @@
          cartesian/2,
          join/1,
          join/3,
+         join_r/1,
+         join_r/3,
          zip/2,
          ziph/2,
          unique/1,
@@ -600,7 +602,7 @@ cartesian(ZList1, ZList2) ->
 %%-------------------------------------------------------------------------------
 %% @doc
 %%   Returns a zlist as a result of join of a list of an ordered zlists. Actually 
-%%   it is a merge join algorithm implementation.
+%%   it is a merge join algorithm implementation. (Keys supposed to increase)
 %%   The function accepts a list of sources where each source is a binary tuple:
 %%      {KeySpec, OrderedZList}, where KeySpec is an integer position of a key 
 %%      in a tuples in a OrderedZList, or a function that returns a key by term 
@@ -616,24 +618,38 @@ cartesian(ZList1, ZList2) ->
 join([{_KeySpec1, ZList1}]) ->
     map(fun(E)-> [E] end, ZList1);
 join([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->
-    left_join(if is_integer(KeySpec1) ->
-                     fun(E)-> element(KeySpec1, E) end;% Currying... 
-                 is_function(KeySpec1,1) -> 
-                     KeySpec1 
-              end, 
-              ZList1, 
-              if is_integer(KeySpec2) ->
-                     fun(E)-> element(KeySpec2, E) end;% Currying... 
-                 is_function(KeySpec2,1) -> 
-                     KeySpec2 
-              end, join([H|Tail]) , false).
+    left_join(form_keyspec(KeySpec1), ZList1,
+              form_keyspec(KeySpec2), join([H|Tail]), false, increase).
+
+-spec join_r(ListOfSources :: [{KeySpec, OrderedZList}]) -> zlist(list(tuple())) 
+        when KeySpec :: non_neg_integer() | fun( (E) -> Key :: term() ),
+             OrderedZList :: zlist(E).
 
 %%-------------------------------------------------------------------------------
 %% @doc
-%%   Returns a zlist as a result of join of a list of a two ordered zlists. Actually 
-%%   it is a merge join algorithm implementation. There is also a possibility to 
-%%   specify complement option. This option controls whether the entry ignored if 
-%%   there is no match with right counterpart.
+%%   Returns a zlist as a result of join of a list of an ordered zlists. Actually 
+%%   it is a merge join algorithm implementation. (Keys supposed to decrease)
+%%   The function accepts a list of sources where each source is a binary tuple:
+%%      {KeySpec, OrderedZList}, where KeySpec is an integer position of a key 
+%%      in a tuples in a OrderedZList, or a function that returns a key by term 
+%%      from a OrderedZList. OrderedZList is a zlist sorted accordinly to KeySpec.
+%%
+%% @end
+%%-------------------------------------------------------------------------------
+
+join_r([{_KeySpec1, ZList1}]) ->
+    map(fun(E)-> [E] end, ZList1);
+join_r([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->
+    left_join(form_keyspec(KeySpec1), ZList1,
+              form_keyspec(KeySpec2), join_r([H|Tail]), false, decrease).
+
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Returns a zlist as a result of join of a list of a two ordered zlists.
+%%   (Keys supposed to increase) Actually it is a merge join algorithm implementation.
+%%   There is also a possibility to specify complement option. This option controls
+%%   whether the entry ignored if there is no match with right counterpart.
 %%   
 %%   Examples:
 %%         42>  zlists:print(zlists:join({1, [{1,left},{2,left},{3,left}]}, {1, [{2,right},{3,right},{4,right}]},true)).      
@@ -646,7 +662,7 @@ join([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->
 %%         [{2,left},{2,right}]
 %%         [{3,left},{3,right}]
 %%         ok
-%%         44>  zlists:print(zlists:join({1, [{1,left},{2,left},{3,left}]}, {1, [{2,right},{3,right},{4,right}]},false)).             
+%%         44>  zlists:print(zlists:join({1, [{1,left},{2,left},{3,left}]}, {1, [{2,right},{3,right},{4,right}]},false)).
 %%         [{2,left},{2,right}]
 %%         [{3,left},{3,right}]
 %%         ok
@@ -661,15 +677,46 @@ join([{KeySpec1, ZList1}, {KeySpec2, _}=H |Tail]=_ListOfSources) ->
              OrderedZList2 :: zlist(E),
              ComplementOpt :: false | true | {complement, With :: term()}.
 join({KeySpec1, OrderedZList1}, {KeySpec2, OrderedZList2}, ComplementOpt) ->
-    left_join(if is_integer(KeySpec1) ->
-                     fun(E)-> element(KeySpec1, E) end;% Currying... 
-                 is_function(KeySpec1,1) -> KeySpec1 
-              end, 
-              OrderedZList1, 
-              if is_integer(KeySpec2) ->
-                     fun(E)-> element(KeySpec2, E) end;% Currying... 
-                 is_function(KeySpec2,1) -> KeySpec2 
-              end, map(fun(E)-> [E] end, OrderedZList2) , ComplementOpt).
+    left_join( form_keyspec(KeySpec1), OrderedZList1,
+               form_keyspec(KeySpec2), map(fun(E)-> [E] end, OrderedZList2),
+               ComplementOpt, increase).
+
+%%-------------------------------------------------------------------------------
+%% @doc
+%%   Returns a zlist as a result of join of a list of a two ordered zlists.
+%%   (Keys supposed to decrease) Actually it is a merge join algorithm implementation.
+%%   There is also a possibility to specify complement option. This option controls
+%%   whether the entry ignored if there is no match with right counterpart.
+%%   Examples:
+%%         42>  zlists:print(zlists:join_r({1, [{3,left},{2,left},{1,left}]}, {1, [{4,right},{3,right},{2,right}]},true)).      
+%%         [{3,left},{3,right}]
+%%         [{2,left},{2,right}]
+%%         [{1,left},undefined]
+%%         ok
+%%         43>  zlists:print(zlists:join_r({1, [{3,left},{2,left},{1,left}]}, {1, [{4,right},{3,right},{2,right}]},{complement,'N/A'})).
+%%         [{3,left},{3,right}]
+%%         [{2,left},{2,right}]
+%%         [{1,left},'N/A']
+%%         ok
+%%         44>  zlists:print(zlists:join_r({1, [{3,left},{2,left},{1,left}]}, {1, [{4,right},{3,right},{2,right}]},false)).
+%%         [{3,left},{3,right}]
+%%         [{2,left},{2,right}]
+%%         ok
+%%
+%% @end
+%%-------------------------------------------------------------------------------
+
+-spec join_r({KeySpec1, OrderedZList1},{KeySpec2, OrderedZList2}, ComplementOpt) -> zlist(list(tuple())) 
+        when KeySpec1 :: non_neg_integer() | fun( (E) -> Key :: term() ),
+             KeySpec2 :: non_neg_integer() | fun( (E) -> Key :: term() ),
+             OrderedZList1 :: zlist(E),
+             OrderedZList2 :: zlist(E),
+             ComplementOpt :: false | true | {complement, With :: term()}.
+join_r({KeySpec1, OrderedZList1}, {KeySpec2, OrderedZList2}, ComplementOpt) ->
+    left_join( form_keyspec(KeySpec1), OrderedZList1,
+               form_keyspec(KeySpec2), map(fun(E)-> [E] end, OrderedZList2),
+               ComplementOpt, decrease).
+
 
 %%-------------------------------------------------------------------------------
 %% @doc
@@ -791,36 +838,39 @@ print(SkipN, PrintN ,ZList) ->
 %% Local Functions
 %%
 
-left_join(_KeyFun1, ZList1, _KeyFun2, [], ComplementOpt) ->
+left_join(_KeyFun1, ZList1, _KeyFun2, [], ComplementOpt, _KeyDirection) ->
     case ComplementOpt of
         {complement, With} -> left_cartesian(ZList1, [[With]]);
         true               -> left_cartesian(ZList1, [[undefined]]);
         false              -> []
     end;
-left_join(_KeyFun1, [], _KeyFun2, _ZList2, _ComplementOpt) ->
+left_join(_KeyFun1, [], _KeyFun2, _ZList2, _ComplementOpt, _KeyDirection) ->
     [];
-left_join(KeyFun1, [H1|Tail1]=ZList1, KeyFun2, [[H2|_]|Tail2]=ZList2, ComplementOpt) 
+left_join(KeyFun1, [H1|Tail1]=ZList1, KeyFun2, [[H2|_]|Tail2]=ZList2, ComplementOpt, _KeyDirection) 
   when is_function(KeyFun1,1), is_function(KeyFun2,1) ->
     K1=KeyFun1(H1),
     K2=KeyFun2(H2),
-    if K1 < K2 ->
-           TF=fun()->left_join(KeyFun1, ?EXPAND(Tail1), KeyFun2, ZList2, ComplementOpt) end,
+    if ((K1 < K2) and (_KeyDirection =:= increase)) or
+       ((K1 > K2) and (_KeyDirection =:= decrease)) ->
+           TF=fun()->left_join(KeyFun1, ?EXPAND(Tail1), KeyFun2, ZList2, ComplementOpt, _KeyDirection) end,
            case ComplementOpt of
                false              ->
-                   left_join(KeyFun1, ?EXPAND(Tail1), KeyFun2, ZList2, ComplementOpt);
+                   left_join(KeyFun1, ?EXPAND(Tail1), KeyFun2, ZList2, ComplementOpt, _KeyDirection);
                {complement, With} ->
                    new(left_cartesian([H1], [[With]]),     TF);
                true               ->
                    new(left_cartesian([H1], [[undefined]]),TF)
            end;
-       K1 > K2 ->
-           left_join(KeyFun1, ZList1, KeyFun2, ?EXPAND(Tail2), ComplementOpt) ;
+       ((K1 > K2) and (_KeyDirection =:= increase)) or
+       ((K1 < K2) and (_KeyDirection =:= decrease)) ->
+           left_join(KeyFun1, ZList1, KeyFun2, ?EXPAND(Tail2), ComplementOpt, _KeyDirection);
        true ->
            Pred1=fun(E) -> KeyFun1(E) == K1 end,
            {K1List, ZList11}=splitwith(Pred1, ZList1),
            Pred2=fun([E|_]) -> KeyFun2(E) == K2 end,
            {K2List, ZList21}=splitwith(Pred2, ZList2),
-           new(left_cartesian(K1List, K2List), fun()-> left_join(KeyFun1, ZList11, KeyFun2, ZList21, ComplementOpt) end)
+           new(left_cartesian(K1List, K2List),
+               fun()-> left_join(KeyFun1, ZList11, KeyFun2, ZList21, ComplementOpt, _KeyDirection) end)
     end.
 
 left_cartesian([El], [Er]) -> % Optimize highly frequent case
@@ -831,6 +881,13 @@ left_cartesian(_ZList1, []) ->
     [];
 left_cartesian(ZList1, ZList2) ->
     generate(ZList1, fun(El)-> map(fun(Er)-> [El|Er] end, ZList2) end).
+
+form_keyspec(KeySpec)
+  when is_integer(KeySpec) ->
+    fun(E)-> element(KeySpec, E) end;
+form_keyspec(KeySpec)
+  when is_function(KeySpec,1) ->
+    KeySpec.    
 
 %%
 %% eUnit Functions

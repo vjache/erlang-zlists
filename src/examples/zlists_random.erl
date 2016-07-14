@@ -17,14 +17,13 @@
 %%
 
 uniform_floats() ->
-    RandFlo=random:uniform(),
+    RandFlo=rand:uniform(),
     zlists:new([RandFlo], fun()-> uniform_floats() end).
 
 uniform_floats(State0) ->
-    {Fl, State1}=random:uniform_s(State0),
+    {Fl, State1}=rand:uniform_s(State0),
     zlists:new([Fl],fun()-> uniform_floats(State1) end).
 
 %%
 %% Local Functions
 %%
-

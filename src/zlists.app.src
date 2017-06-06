@@ -1,9 +1,6 @@
 %% -*- mode: erlang; -*-
-{application, zlists,
- [{description, "A lazy lists (Z-Lists) for Erlang"},
-  {vsn, "0.0.3"},
-  {modules, []},
-  {registered, []},
-  {applications, [kernel, stdlib]},
-  {build_dependencies, []},
-  {env, []}]}.
+{application, zlists, [
+    {description, "A lazy lists (Z-Lists) for Erlang"},
+    {vsn, "0.0.4"},
+    {applications, [kernel, stdlib]}
+]}.

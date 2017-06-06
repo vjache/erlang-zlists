@@ -2,5 +2,10 @@
 {application, zlists, [
     {description, "A lazy lists (Z-Lists) for Erlang"},
     {vsn, "0.0.4"},
-    {applications, [kernel, stdlib]}
+    {applications, [kernel, stdlib]},
+    {maintainers, ["Vyacheslav Vorobyov"]},
+    {licenses, ["Apache"]},
+    {links, [
+        {"Github", "https://github.com/vjache/erlang-zlists"}
+    ]}
 ]}.
